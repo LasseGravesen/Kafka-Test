@@ -1,0 +1,21 @@
+version: '2.2'
+services:
+  zk:
+    image: jplock/zookeeper:3.4.13
+    ports:
+      - "2181:2181"
+  kafka:
+    image: ches/kafka:0.8.2.2
+    environment:
+      - KAFKA_ADVERTISED_HOST_NAME=kafka
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - ZOOKEEPER_IP=zk
+    ports:
+      - "9092:9092"
+      - "7203:7203"
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
