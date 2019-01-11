@@ -6,7 +6,7 @@ Test repo to show leaky pykafka with rdkafka. Requires Docker and Docker Compose
 Running
 -------
 
-To run and attach to the producer, issue the following commands
+To run the stack, issue the following commands
 
 .. code:: bash
 
