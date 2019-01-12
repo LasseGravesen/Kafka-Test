@@ -7,15 +7,27 @@ services:
   kafka:
     image: ches/kafka:0.8.2.2
     environment:
-      - KAFKA_ADVERTISED_HOST_NAME=kafka
+      - KAFKA_ADVERTISED_HOST_NAME=localhost
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
       - ZOOKEEPER_IP=zk
     ports:
       - "9092:9092"
       - "7203:7203"
 
-  producer:
+  producer-delete:
     build:
       context: .
       dockerfile: Dockerfile
+    environment:
+      - NONE_DELETE=True
+    volumes:
+      - ./logs:/var/log
     
+  producer-no-delete:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NONE_DELETE=False
+    volumes:
+      - ./logs:/var/log
