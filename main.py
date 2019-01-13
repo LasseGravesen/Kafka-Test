@@ -13,6 +13,9 @@ from pythonjsonlogger import jsonlogger
 import signal
 from pympler.tracker import SummaryTracker
 import atexit
+import resource
+import gc
+import tracemalloc
 
 class Producer:
     """Produce messages to Kafka.
@@ -97,11 +100,6 @@ class TestProducerService:
         log_handler = logging.StreamHandler(sys.stdout)
         log_handler.setFormatter(formatter)
         self.logger.addHandler(log_handler)
-        
-        #file_handler = logging.FileHandler(f"./logs/kafka-test-delete-{self.none_delete}.log")
-        #file_handler.setFormatter(formatter)
-        #self.logger.addHandler(file_handler)
-        
         self.logger.info("setup-logger", extra={"log_level": self.log_level})
         
     def setup_kafka_producer(self):
@@ -141,6 +139,8 @@ class TestProducerService:
             iteration += 1
             if message_count % report_at_message_no == 0:
                 if self.logger:
+                    gc.collect()
+                    self.logger.info("memory-usage", extra={"memory-usage-in-kb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss})
                     self.logger.info("produced-messages", extra={"messages_per_batch": messages_per_batch, 
                                                              "message_count": message_count,
                                                              "iteration": iteration,
@@ -152,8 +152,14 @@ class TestProducerService:
 
 def main():
     none_delete = True if os.getenv("NONE_DELETE", "True") == "True" else False
+    tracemalloc.start()
     tps = TestProducerService(run_time_minutes=1, none_delete=none_delete)
     tps.run()
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    print("[ Top 10 ]")
+    for stat in top_stats[:10]:
+        print(stat)
             
 if __name__ == '__main__':
     main()

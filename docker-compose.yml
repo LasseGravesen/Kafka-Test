@@ -31,3 +31,4 @@ services:
       - NONE_DELETE=False
     volumes:
       - ./logs:/var/log
+  
