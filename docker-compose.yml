@@ -18,17 +18,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      - NONE_DELETE=True
-    volumes:
-      - ./logs:/var/log
-    
-  producer-no-delete:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      - NONE_DELETE=False
     volumes:
       - ./logs:/var/log
   

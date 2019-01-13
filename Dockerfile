@@ -19,6 +19,6 @@ COPY requirements.txt ./requirements.txt
 RUN pip install --upgrade pip --no-cache
 RUN pip install -r requirements.txt --no-cache
 
-COPY main.py ./app/main.py
+COPY main_confluent.py ./app/main_confluent.py
 
-CMD ["python3", "./app/main.py"]
+CMD ["python3", "./app/main_confluent.py"]
