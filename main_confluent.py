@@ -10,7 +10,9 @@ import zlib
 import os
 import logging
 from pythonjsonlogger import jsonlogger
-import signal
+import resource
+import gc
+import tracemalloc
 
 class Producer:
     """Produce messages to Kafka.
@@ -28,30 +30,29 @@ class Producer:
         self.logger = logger
         self.topic = topic
         self.producer = confluent_kafka.Producer({"bootstrap.servers": ",".join(hosts),
+                                                  "queued.min.messages": 100,
                                                   "queue.buffering.max.messages": 1000000,
-                                                  "queue.buffering.max.ms": 5000,
-                                                  "batch.num.messages": 100,
+                                                  "queue.buffering.max.ms": 100,
                                                   "api.version.request": False,
+                                                  "compression.type": "snappy",
                                                   "broker.version.fallback": broker_version})
 
     def delivery_report(self, err, msg):
         """Callback for delivery reports."""
         if err is not None:
             self.logger.error(f"Message delivery failed: {err}")
-        else:
-            self.logger.debug(f"Message delivered to {msg.topic()} [{msg.partition()}]")
         
     def push(self, *messages):
         """Push items to Kafka."""
-        self.producer.poll(0)  # Trigger any available delivery report callbacks from previous produce() calls
-
+        self.producer.poll(timeout=0)  # Trigger any available delivery report callbacks from previous produce() calls
         for message in messages:
             encoded_message = message.encode()
             produced_message = self.producer.produce(self.topic, encoded_message, callback=self.delivery_report)
+        
 
 def generate_post(key):
     """Generate a post."""
-    output = {"value": "kafka-test"*100,  # "".join(random.choice(string.ascii_lowercase) for i in range(10000)),
+    output = {"value": "kafka-test"*100,
               "key": key,
               "correlationId": str(uuid.uuid4())}
     return output
@@ -102,11 +103,6 @@ class TestProducerService:
         self.got_sigterm_signal = True
         self.logger.warning("shutting-down")
       
-    def setup_signal(self):
-        """Set up SIGTERM signal handler."""
-        signal.signal(signal.SIGTERM, self.shutdown_gracefully)
-        self.logger.info("setup-sigterm-handler")
-      
     def run(self):
         """Run the main loop for the service."""
         self.logger.info("starting-run")
@@ -115,24 +111,34 @@ class TestProducerService:
         report_at_message_no = 10000
         messages_per_batch = 100
         while datetime.datetime.utcnow() < self.run_time_end:
-            if self.got_sigterm_signal:
-                return
             posts = [generate_post(x) for x in range(messages_per_batch)]
             self.producer.push(*[json.dumps(post) for post in posts])
             posts = None
             message_count += messages_per_batch
             iteration += 1
             if message_count % report_at_message_no == 0:
+                gc.collect()
+                self.logger.info("memory-usage", extra={"memory-usage-in-kb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss})
                 self.logger.info("produced-messages", extra={"messages_per_batch": messages_per_batch, 
                                                          "message_count": message_count,
                                                          "iteration": iteration,
                                                          "started_at": self.run_time_start.isoformat(),
                                                          "ends_at": self.run_time_end.isoformat()})
+        run_for_10_seconds = datetime.datetime.utcnow() + datetime.timedelta(seconds=10)
+        self.producer.producer.flush()
+        while datetime.datetime.utcnow() < run_for_10_seconds:
+            self.logger.info("memory-usage", extra={"memory-usage-in-kb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss})
         self.logger.info("run-finished", extra={"topic": self.topic, "run_time_start": self.run_time_start, "run_time_end": self.run_time_end, "run_time_minutes": self.run_time_minutes, "log_level": self.log_level})
 
 def main():
+    tracemalloc.start()
     tps = TestProducerService(run_time_minutes=1)
     tps.run()
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    print("[ Top 10 ]")
+    for stat in top_stats[:10]:
+        print(stat)
             
 if __name__ == '__main__':
     main()
