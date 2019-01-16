@@ -17,6 +17,13 @@ import resource
 import gc
 import tracemalloc
 
+def memory_usage_psutil():
+    # return the memory usage in MB
+    import psutil
+    process = psutil.Process(os.getpid())
+    mem = process.get_memory_info()[0] / float(2 ** 20)
+    return mem
+
 class Producer:
     """Produce messages to Kafka.
     Arguments:
@@ -140,7 +147,7 @@ class TestProducerService:
             if message_count % report_at_message_no == 0:
                 if self.logger:
                     gc.collect()
-                    self.logger.info("memory-usage", extra={"memory-usage-in-kb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss})
+                    self.logger.info("memory-usage", extra={"memory-usage-in-mb": memory_usage_psutil()})
                     self.logger.info("produced-messages", extra={"messages_per_batch": messages_per_batch, 
                                                              "message_count": message_count,
                                                              "iteration": iteration,

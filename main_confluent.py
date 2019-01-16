@@ -13,6 +13,14 @@ from pythonjsonlogger import jsonlogger
 import resource
 import gc
 import tracemalloc
+import psutil
+
+def memory_usage_psutil():
+    # return the memory usage in MB
+    import psutil
+    process = psutil.Process(os.getpid())
+    mem = process.memory_percent()
+    return mem
 
 class Producer:
     """Produce messages to Kafka.
@@ -30,9 +38,9 @@ class Producer:
         self.logger = logger
         self.topic = topic
         self.producer = confluent_kafka.Producer({"bootstrap.servers": ",".join(hosts),
-                                                  "queued.min.messages": 100,
+                                                  "queued.min.messages": 1000,
                                                   "queue.buffering.max.messages": 1000000,
-                                                  "queue.buffering.max.ms": 100,
+                                                  "queue.buffering.max.ms": 1000,
                                                   "api.version.request": False,
                                                   "compression.type": "snappy",
                                                   "broker.version.fallback": broker_version})
@@ -118,16 +126,13 @@ class TestProducerService:
             iteration += 1
             if message_count % report_at_message_no == 0:
                 gc.collect()
-                self.logger.info("memory-usage", extra={"memory-usage-in-kb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss})
+                self.logger.info("memory-usage", extra={"memory-usage-in-mb": memory_usage_psutil()})
                 self.logger.info("produced-messages", extra={"messages_per_batch": messages_per_batch, 
                                                          "message_count": message_count,
                                                          "iteration": iteration,
                                                          "started_at": self.run_time_start.isoformat(),
                                                          "ends_at": self.run_time_end.isoformat()})
-        run_for_10_seconds = datetime.datetime.utcnow() + datetime.timedelta(seconds=10)
         self.producer.producer.flush()
-        while datetime.datetime.utcnow() < run_for_10_seconds:
-            self.logger.info("memory-usage", extra={"memory-usage-in-kb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss})
         self.logger.info("run-finished", extra={"topic": self.topic, "run_time_start": self.run_time_start, "run_time_end": self.run_time_end, "run_time_minutes": self.run_time_minutes, "log_level": self.log_level})
 
 def main():
